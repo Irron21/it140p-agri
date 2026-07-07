@@ -1,10 +1,10 @@
-# AgriFlow: SOAP-Based Agricultural Logistics Platform
+# Agricultural Logistics Hub
 
-AgriFlow is a high-fidelity foundational scaffolding for a modern agricultural logistics platform using a hybrid mobile/web SOAP service architecture. It integrates a **PHP SOAP Backend** with a WSDL interface and a **Kotlin Jetpack Compose Android Client** powered by `ksoap2-android`.
+This is a high-fidelity foundational scaffolding for a modern agricultural logistics platform using a hybrid mobile/web SOAP service architecture. It integrates a **PHP SOAP Backend** with a WSDL interface and a **Kotlin Jetpack Compose Android Client** powered by `ksoap2-android`.
 
 ---
 
-## 🏗️ Project Architecture
+## Project Architecture
 
 ```
 IT140P/
@@ -31,7 +31,7 @@ IT140P/
 
 ---
 
-## ⚡ Backend Setup (`/php-soap-backend`)
+## Backend Setup (`/php-soap-backend`)
 
 The PHP SOAP server uses the native `SoapServer` class. Follow these instructions to launch it locally.
 
@@ -61,11 +61,11 @@ The browser diagnostic client (`client.php`) lets you test all four calculations
 
 ---
 
-## 📱 Android App Setup (`/android-app`)
+## Android App Setup (`/android-app`)
 
 The Android application is built with **Kotlin**, **Jetpack Compose (Material 3)**, and uses the **ksoap2-android** library to consume the PHP SOAP service.
 
-### 🔌 Configuring the Connection Endpoint
+### Configuring the Connection Endpoint
 By default, the Android app targets `http://10.0.2.2:8000/server.php` (which represents the local computer host machine from inside the Android Emulator).
 
 * **If running on an Emulator**: Leave the default configuration.
@@ -75,14 +75,14 @@ By default, the Android app targets `http://10.0.2.2:8000/server.php` (which rep
   3. Inside the AgriFlow Android app, tap the **Settings (Gear Icon)** in the top right header.
   4. Change the server URL to point to your computer's IP (e.g., `http://192.168.1.150:8000/server.php`).
 
-### 📦 Dependencies & Setup
+### Dependencies & Setup
 All dependencies resolve automatically. Key imports in the Gradle build:
 * `com.google.code.ksoap2-android:ksoap2-android:3.6.4`
 * Sonatype Repository resolution for `ksoap2` is configured in `settings.gradle.kts`.
 
 ---
 
-## 🧮 Computational Transactions
+## Computational Transactions
 
 AgriFlow implements 4 complex calculations:
 
