@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="AgriFlowService"
+             targetNamespace="http://localhost:8000/agriflow"
+             xmlns:tns="http://localhost:8000/agriflow"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+             xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+             xmlns="http://schemas.xmlsoap.org/wsdl/">
+
+    <types>
+        <xsd:schema targetNamespace="http://localhost:8000/agriflow">
+            <!-- Complex Type for Coordinate -->
+            <xsd:complexType name="Coordinate">
+                <xsd:sequence>
+                    <xsd:element name="latitude" type="xsd:double"/>
+                    <xsd:element name="longitude" type="xsd:double"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <!-- Array of Coordinates -->
+            <xsd:complexType name="CoordinateArray">
+                <xsd:sequence>
+                    <xsd:element name="coordinate" type="tns:Coordinate" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+
+            <!-- Array of Doubles (for inputs) -->
+            <xsd:complexType name="DoubleArray">
+                <xsd:sequence>
+                    <xsd:element name="value" type="xsd:double" minOccurs="0" maxOccurs="unbounded"/>
+                </xsd:sequence>
+            </xsd:complexType>
+        </xsd:schema>
+    </types>
+
+    <!-- Message definitions -->
+    <message name="calculateYieldForecastRequest">
+        <part name="area" type="xsd:double"/>
+        <part name="temp" type="xsd:double"/>
+        <part name="ph" type="xsd:double"/>
+    </message>
+    <message name="calculateYieldForecastResponse">
+        <part name="result" type="xsd:double"/>
+    </message>
+
+    <message name="calculateFreightPriceRequest">
+        <part name="distance" type="xsd:double"/>
+        <part name="fuelPrice" type="xsd:double"/>
+        <part name="weight" type="xsd:double"/>
+    </message>
+    <message name="calculateFreightPriceResponse">
+        <part name="result" type="xsd:double"/>
+    </message>
+
+    <message name="calculateHubClusterRequest">
+        <part name="latitudes" type="tns:DoubleArray"/>
+        <part name="longitudes" type="tns:DoubleArray"/>
+        <part name="k" type="xsd:int"/>
+    </message>
+    <message name="calculateHubClusterResponse">
+        <part name="result" type="tns:CoordinateArray"/>
+    </message>
+
+    <message name="calculateCarbonFootprintRequest">
+        <part name="efficiency" type="xsd:double"/>
+        <part name="distance" type="xsd:double"/>
+        <part name="weight" type="xsd:double"/>
+    </message>
+    <message name="calculateCarbonFootprintResponse">
+        <part name="result" type="xsd:double"/>
+    </message>
+
+    <!-- Port Type (Operations) -->
+    <portType name="AgriFlowPortType">
+        <operation name="calculateYieldForecast">
+            <input message="tns:calculateYieldForecastRequest"/>
+            <output message="tns:calculateYieldForecastResponse"/>
+        </operation>
+        <operation name="calculateFreightPrice">
+            <input message="tns:calculateFreightPriceRequest"/>
+            <output message="tns:calculateFreightPriceResponse"/>
+        </operation>
+        <operation name="calculateHubCluster">
+            <input message="tns:calculateHubClusterRequest"/>
+            <output message="tns:calculateHubClusterResponse"/>
+        </operation>
+        <operation name="calculateCarbonFootprint">
+            <input message="tns:calculateCarbonFootprintRequest"/>
+            <output message="tns:calculateCarbonFootprintResponse"/>
+        </operation>
+    </portType>
+
+    <!-- Binding -->
+    <binding name="AgriFlowBinding" type="tns:AgriFlowPortType">
+        <soap:binding style="rpc" transport="http://schemas.xmlsoap.org/soap/http"/>
+        <operation name="calculateYieldForecast">
+            <soap:operation soapAction="http://localhost:8000/agriflow#calculateYieldForecast"/>
+            <input><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></input>
+            <output><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></output>
+        </operation>
+        <operation name="calculateFreightPrice">
+            <soap:operation soapAction="http://localhost:8000/agriflow#calculateFreightPrice"/>
+            <input><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></input>
+            <output><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></output>
+        </operation>
+        <operation name="calculateHubCluster">
+            <soap:operation soapAction="http://localhost:8000/agriflow#calculateHubCluster"/>
+            <input><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></input>
+            <output><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></output>
+        </operation>
+        <operation name="calculateCarbonFootprint">
+            <soap:operation soapAction="http://localhost:8000/agriflow#calculateCarbonFootprint"/>
+            <input><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></input>
+            <output><soap:body use="literal" namespace="http://localhost:8000/agriflow"/></output>
+        </operation>
+    </binding>
+
+    <!-- Service -->
+    <service name="AgriFlowService">
+        <port name="AgriFlowPort" binding="tns:AgriFlowBinding">
+            <soap:address location="http://localhost:8000/server.php"/>
+        </port>
+    </service>
+</definitions>
