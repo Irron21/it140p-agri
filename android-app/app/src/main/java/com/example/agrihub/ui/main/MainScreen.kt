@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -61,6 +62,7 @@ fun MainScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     
     val endpointUrl by viewModel.endpointUrl.collectAsStateWithLifecycle()
+    val fuelApiUrl by viewModel.fuelApiUrl.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -137,9 +139,11 @@ fun MainScreen(
             // Server Settings Modal Dialog
             if (showSettingsDialog) {
                 ServerSettingsDialog(
-                    currentUrl = endpointUrl,
-                    onSave = { newUrl ->
-                        viewModel.updateEndpointUrl(newUrl)
+                    currentSoapUrl = endpointUrl,
+                    currentFuelApiUrl = fuelApiUrl,
+                    onSave = { newSoapUrl, newFuelApiUrl ->
+                        viewModel.updateEndpointUrl(newSoapUrl)
+                        viewModel.updateFuelApiUrl(newFuelApiUrl)
                         showSettingsDialog = false
                     },
                     onDismiss = { showSettingsDialog = false }
@@ -165,11 +169,13 @@ fun OptInTopAppBar(
 
 @Composable
 fun ServerSettingsDialog(
-    currentUrl: String,
-    onSave: (String) -> Unit,
+    currentSoapUrl: String,
+    currentFuelApiUrl: String,
+    onSave: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var urlText by remember { mutableStateOf(currentUrl) }
+    var soapUrlText by remember { mutableStateOf(currentSoapUrl) }
+    var fuelApiUrlText by remember { mutableStateOf(currentFuelApiUrl) }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -185,22 +191,44 @@ fun ServerSettingsDialog(
                     .fillMaxWidth()
             ) {
                 Text(
-                    text = "SOAP Connection Setup",
+                    text = "Backend Connection Setup",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Configure the WSDL server target endpoint. For local emulators, use 10.0.2.2 instead of localhost.",
+                    text = "Configure the backend target endpoints. For local emulators, use 10.0.2.2 instead of localhost.",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "SOAP (WSDL)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
-                    value = urlText,
-                    onValueChange = { urlText = it },
+                    value = soapUrlText,
+                    onValueChange = { soapUrlText = it },
                     label = { Text("SOAP server.php Endpoint URL") },
+                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "REST (JSON)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = fuelApiUrlText,
+                    onValueChange = { fuelApiUrlText = it },
+                    label = { Text("Live Fuel Price REST API URL") },
                     textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -214,10 +242,10 @@ fun ServerSettingsDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onSave(urlText) },
+                        onClick = { onSave(soapUrlText, fuelApiUrlText) },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Text("Save Link", color = MaterialTheme.colorScheme.onPrimary)
+                        Text("Save Links", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
@@ -390,7 +418,16 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
     var weightInput by remember { mutableStateOf("18.5") }
     
     val freightState by viewModel.freightState.collectAsStateWithLifecycle()
+    val fuelPriceState by viewModel.fuelPriceState.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+
+    // When a live REST fuel price fetch succeeds, snap the slider to it (clamped to its range).
+    LaunchedEffect(fuelPriceState) {
+        val successState = fuelPriceState
+        if (successState is SoapUiState.Success) {
+            fuelPriceInput = successState.data.pricePerLiter.toFloat().coerceIn(40.00f, 100.00f)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -435,6 +472,54 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                 valueRange = 40.00f..100.00f,
                 steps = 600
             )
+
+            OutlinedButton(
+                onClick = { viewModel.fetchLiveFuelPrice() },
+                enabled = fuelPriceState !is SoapUiState.Loading,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            ) {
+                if (fuelPriceState is SoapUiState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fetching from GasWatch PH…", fontSize = 13.sp)
+                } else {
+                    Icon(imageVector = Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fetch Live Diesel Price (REST)", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            // Live price fetch result / error caption
+            when (val state = fuelPriceState) {
+                is SoapUiState.Success -> {
+                    val info = state.data
+                    val statusLabel = when (info.cacheStatus) {
+                        "live" -> "Live"
+                        "cached" -> "Cached"
+                        "stale-cache" -> "Cached (stale)"
+                        "fallback" -> "Default (offline)"
+                        else -> info.cacheStatus
+                    }
+                    Text(
+                        text = buildString {
+                            append("$statusLabel · GasWatch PH")
+                            if (info.asOfText != null) append(" · as of ${info.asOfText}")
+                        },
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                is SoapUiState.Error -> {
+                    Text(
+                        text = "REST fetch failed: ${state.message}",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                else -> Unit
+            }
         }
 
         Button(

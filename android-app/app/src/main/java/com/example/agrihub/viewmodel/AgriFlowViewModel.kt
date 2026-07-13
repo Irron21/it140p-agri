@@ -3,6 +3,8 @@ package com.example.agriflow.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.agriflow.network.Coordinate
+import com.example.agriflow.network.FuelPriceInfo
+import com.example.agriflow.network.FuelPriceRepository
 import com.example.agriflow.network.SoapRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +25,21 @@ sealed interface SoapUiState<out T> {
  * Shared ViewModel handling all operations for AgriFlow calculations.
  */
 class AgriFlowViewModel(
-    private val repository: SoapRepository = SoapRepository()
+    private val repository: SoapRepository = SoapRepository(),
+    private val fuelPriceRepository: FuelPriceRepository = FuelPriceRepository()
 ) : ViewModel() {
 
     // SOAP Endpoint URL (Configurable by user in-app)
     private val _endpointUrl = MutableStateFlow("http://10.0.2.2:8000/server.php")
     val endpointUrl: StateFlow<String> = _endpointUrl.asStateFlow()
+
+    // REST Fuel Price Endpoint URL (Configurable by user in-app)
+    private val _fuelApiUrl = MutableStateFlow("http://10.0.2.2:8000/fuel-price-api.php")
+    val fuelApiUrl: StateFlow<String> = _fuelApiUrl.asStateFlow()
+
+    // --- 5. Live Fuel Price (REST) State ---
+    private val _fuelPriceState = MutableStateFlow<SoapUiState<FuelPriceInfo>>(SoapUiState.Idle)
+    val fuelPriceState: StateFlow<SoapUiState<FuelPriceInfo>> = _fuelPriceState.asStateFlow()
 
     // --- 1. Yield Forecast State ---
     private val _yieldState = MutableStateFlow<SoapUiState<Double>>(SoapUiState.Idle)
@@ -51,6 +62,32 @@ class AgriFlowViewModel(
      */
     fun updateEndpointUrl(newUrl: String) {
         _endpointUrl.value = newUrl.trim()
+    }
+
+    /**
+     * Updates the target REST fuel-price-api.php endpoint URL.
+     */
+    fun updateFuelApiUrl(newUrl: String) {
+        _fuelApiUrl.value = newUrl.trim()
+    }
+
+    /**
+     * Runs the REST transaction to fetch the current live diesel price.
+     * A plain GET/JSON call -- deliberately lighter weight than the SOAP
+     * transactions below, since fuel prices change often and don't need a
+     * strict WSDL contract.
+     */
+    fun fetchLiveFuelPrice() {
+        viewModelScope.launch {
+            _fuelPriceState.value = SoapUiState.Loading
+            fuelPriceRepository.fetchDieselPrice(_fuelApiUrl.value)
+                .onSuccess { info ->
+                    _fuelPriceState.value = SoapUiState.Success(info)
+                }
+                .onFailure { error ->
+                    _fuelPriceState.value = SoapUiState.Error(error.localizedMessage ?: "Unknown REST error")
+                }
+        }
     }
 
     /**
@@ -135,5 +172,6 @@ class AgriFlowViewModel(
         _freightState.value = SoapUiState.Idle
         _hubState.value = SoapUiState.Idle
         _carbonState.value = SoapUiState.Idle
+        _fuelPriceState.value = SoapUiState.Idle
     }
 }
