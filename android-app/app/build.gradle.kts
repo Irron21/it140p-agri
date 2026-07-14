@@ -2,6 +2,7 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.ksp)
 }
 
 android {
@@ -89,4 +90,9 @@ dependencies {
 
   // OpenStreetMap (osmdroid) Library
   implementation("org.osmdroid:osmdroid-android:6.1.20")
+
+  // Local persistence (Room) -- stores computation history for each SOAP tool
+  implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.room.ktx)
+  ksp(libs.androidx.room.compiler)
 }

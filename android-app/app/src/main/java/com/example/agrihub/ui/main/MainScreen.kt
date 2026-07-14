@@ -5,58 +5,128 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.Agriculture
-import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Warehouse
-import androidx.compose.material.icons.filled.Eco
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warehouse
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarColors
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalContext
-import java.util.Locale
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.MapEventsOverlay
-import org.osmdroid.events.MapEventsReceiver
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
+import com.example.agriflow.data.local.HistoryRepository
+import com.example.agriflow.data.local.decodePoints
 import com.example.agriflow.network.Coordinate
 import com.example.agriflow.viewmodel.AgriFlowViewModel
 import com.example.agriflow.viewmodel.SoapUiState
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.Marker
+import java.util.Locale
+import kotlin.math.max
+import kotlin.math.round
 
+/**
+ * Builds the shared [AgriFlowViewModel], wiring in a [HistoryRepository]
+ * backed by a Room database file scoped to the app's Application context.
+ * [LocalContext] can only be read from composable code, so it's resolved
+ * here (a @Composable function) before being captured by the plain,
+ * non-composable `viewModel { ... }` initializer lambda.
+ */
+@Composable
+fun rememberAgriFlowViewModel(): AgriFlowViewModel {
+    val appContext = LocalContext.current.applicationContext
+    return viewModel {
+        AgriFlowViewModel(historyRepository = HistoryRepository(appContext))
+    }
+}
+
+@Suppress("UNUSED_PARAMETER", "AssignedValueIsNeverRead") // onItemClick reserved for future drill-down navigation from tabs
 @Composable
 fun MainScreen(
     onItemClick: (NavKey) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AgriFlowViewModel = viewModel { AgriFlowViewModel() }
+    viewModel: AgriFlowViewModel = rememberAgriFlowViewModel()
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -65,6 +135,7 @@ fun MainScreen(
     val fuelApiUrl by viewModel.fuelApiUrl.collectAsStateWithLifecycle()
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             OptInTopAppBar(
                 title = {
@@ -261,7 +332,18 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
     var phInput by remember { mutableFloatStateOf(6.5f) }
     
     val yieldState by viewModel.yieldState.collectAsStateWithLifecycle()
+    val yieldHistory by viewModel.yieldHistory.collectAsStateWithLifecycle()
+    val pendingReuse by viewModel.pendingYieldReuse.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(pendingReuse) {
+        pendingReuse?.let { entry ->
+            areaInput = entry.area.toString()
+            tempInput = entry.temperature.toFloat()
+            phInput = entry.ph.toFloat()
+            viewModel.clearYieldReuse()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -407,6 +489,14 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+
+        HistorySection(
+            entries = yieldHistory,
+            getTimestamp = { it.timestamp },
+            formatSummary = { String.format(Locale.US, "%.1f ha · %.1f°C · pH %.1f", it.area, it.temperature, it.ph) },
+            formatResult = { String.format(Locale.US, "%.2f t", it.resultTons) },
+            onReuse = { viewModel.selectYieldForReuse(it) }
+        )
     }
 }
 
@@ -419,7 +509,18 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
     
     val freightState by viewModel.freightState.collectAsStateWithLifecycle()
     val fuelPriceState by viewModel.fuelPriceState.collectAsStateWithLifecycle()
+    val freightHistory by viewModel.freightHistory.collectAsStateWithLifecycle()
+    val pendingReuse by viewModel.pendingFreightReuse.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(pendingReuse) {
+        pendingReuse?.let { entry ->
+            distanceInput = entry.distance.toString()
+            fuelPriceInput = entry.fuelPrice.toFloat().coerceIn(40.00f, 100.00f)
+            weightInput = entry.weight.toString()
+            viewModel.clearFreightReuse()
+        }
+    }
 
     // When a live REST fuel price fetch succeeds, snap the slider to it (clamped to its range).
     LaunchedEffect(fuelPriceState) {
@@ -633,14 +734,24 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+
+        HistorySection(
+            entries = freightHistory,
+            getTimestamp = { it.timestamp },
+            formatSummary = { String.format(Locale.US, "%.0f km · ₱%.2f/L · %.1f t", it.distance, it.fuelPrice, it.weight) },
+            formatResult = { String.format(Locale.US, "₱%,.2f", it.resultCost) },
+            onReuse = { viewModel.selectFreightForReuse(it) }
+        )
     }
 }
 
-// Helper to create custom circular markers for hubs
-private fun createCircularSymbolMarker(context: android.content.Context, color: Int, symbol: String): android.graphics.drawable.BitmapDrawable {
+// Helper to create the hub centroid marker (fixed red circle + star glyph)
+private fun createCircularSymbolMarker(context: android.content.Context): android.graphics.drawable.BitmapDrawable {
+    val color = android.graphics.Color.RED
+    val symbol = "★"
     val density = context.resources.displayMetrics.density
     val size = (36 * density).toInt() // 36dp
-    val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(size, size)
     val canvas = android.graphics.Canvas(bitmap)
     
     // Draw shadow
@@ -679,7 +790,7 @@ private fun createCircularSymbolMarker(context: android.content.Context, color: 
     val yPos = (size / 2f) - ((textPaint.descent() + textPaint.ascent()) / 2f)
     canvas.drawText(symbol, size / 2f, yPos, textPaint)
     
-    return android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
+    return bitmap.toDrawable(context.resources)
 }
 
 // --- 3. Hub Clustering Screen Tab ---
@@ -687,18 +798,32 @@ private fun createCircularSymbolMarker(context: android.content.Context, color: 
 fun HubClusterTab(viewModel: AgriFlowViewModel) {
     var farms by remember { mutableStateOf(listOf<GeoPoint>()) }
     var kInput by remember { mutableFloatStateOf(2.0f) }
-    
-    val hubState by viewModel.hubState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
-    // Prepare tinted standard osmdroid marker drawables
-    val farmIcon = remember(context) {
-        context.getDrawable(org.osmdroid.library.R.drawable.marker_default)?.mutate()?.apply {
+    val hubState by viewModel.hubState.collectAsStateWithLifecycle()
+    val hubClusterHistory by viewModel.hubClusterHistory.collectAsStateWithLifecycle()
+    val pendingReuse by viewModel.pendingHubReuse.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val resources = LocalResources.current
+
+    LaunchedEffect(pendingReuse) {
+        pendingReuse?.let { entry ->
+            farms = decodePoints(entry.farmPoints).map { (lat, lng) -> GeoPoint(lat, lng) }
+            kInput = entry.k.toFloat()
+            viewModel.clearHubReuse()
+        }
+    }
+
+// Prepare tinted standard osmdroid marker drawables.
+// Uses LocalResources (not context.getDrawable) so this correctly invalidates
+// on Configuration changes -- see the LocalContextGetResourceValueCall lint.
+    val farmIcon = remember(resources) {
+        ResourcesCompat.getDrawable(resources, org.osmdroid.library.R.drawable.marker_default, null)?.mutate()?.apply {
             setTint(android.graphics.Color.BLUE)
         }
     }
+
     val hubIcon = remember(context) {
-        createCircularSymbolMarker(context, android.graphics.Color.RED, "★")
+        createCircularSymbolMarker(context)
     }
 
     // Initialize MapView with remember to survive recomposition
@@ -706,7 +831,7 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
         MapView(context).apply {
             org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
             setMultiTouchControls(true)
-            setBuiltInZoomControls(false) // Disable built-in zoom buttons
+            zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER) // Disable built-in zoom buttons
             controller.setZoom(14.0)
             controller.setCenter(GeoPoint(14.2778, 121.1250)) // Cabuyao City center
         }
@@ -787,7 +912,7 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                     map.overlays.add(mapEventsOverlay)
 
                     // Add Farm Markers (Blue)
-                    farms.forEachIndexed { index, farm ->
+                    farms.forEach { farm ->
                         val marker = Marker(map).apply {
                             position = farm
                             icon = farmIcon
@@ -889,6 +1014,14 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+
+        HistorySection(
+            entries = hubClusterHistory,
+            getTimestamp = { it.timestamp },
+            formatSummary = { "${decodePoints(it.farmPoints).size} farms · K=${it.k}" },
+            formatResult = { "${decodePoints(it.resultHubs).size} hubs" },
+            onReuse = { viewModel.selectHubForReuse(it) }
+        )
     }
 }
 
@@ -900,7 +1033,18 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
     var efficiencyInput by remember { mutableStateOf("62.0") }
     
     val carbonState by viewModel.carbonState.collectAsStateWithLifecycle()
+    val carbonHistory by viewModel.carbonHistory.collectAsStateWithLifecycle()
+    val pendingReuse by viewModel.pendingCarbonReuse.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(pendingReuse) {
+        pendingReuse?.let { entry ->
+            distanceInput = entry.distance.toString()
+            weightInput = entry.weight.toString()
+            efficiencyInput = entry.efficiency.toString()
+            viewModel.clearCarbonReuse()
+        }
+    }
 
     // Transport Types Dropdown Presets
     var expandedDropdown by remember { mutableStateOf(false) }
@@ -994,7 +1138,7 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
 
         StateDisplay(carbonState) { data ->
             var isExpanded by remember { mutableStateOf(false) }
-            val treeOffsetCount = Math.max(1, Math.round(data / 21.0).toInt())
+            val treeOffsetCount = max(1, round(data / 21.0).toInt())
 
             ElevatedCard(
                 elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
@@ -1067,10 +1211,102 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+
+        HistorySection(
+            entries = carbonHistory,
+            getTimestamp = { it.timestamp },
+            formatSummary = { String.format(Locale.US, "%.0f km · %.1f t · %.1f gCO₂/t-km", it.distance, it.weight, it.efficiency) },
+            formatResult = { String.format(Locale.US, "%.2f kg", it.resultCo2) },
+            onReuse = { viewModel.selectCarbonForReuse(it) }
+        )
     }
 }
 
 // --- Common UI Components ---
+
+/**
+ * Collapsible "Recent Runs" list backed by Room-persisted history for a
+ * single tool. Tapping a row invokes [onReuse], which the calling tab uses
+ * to refill its input fields (see the `LaunchedEffect(pendingXReuse)` blocks
+ * in each tab composable).
+ */
+@Composable
+fun <T> HistorySection(
+    entries: List<T>,
+    getTimestamp: (T) -> Long,
+    formatSummary: (T) -> String,
+    formatResult: (T) -> String,
+    onReuse: (T) -> Unit
+) {
+    if (entries.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Recent Runs (${entries.size})",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = "Toggle History",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            ) {
+                entries.forEachIndexed { index, entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onReuse(entry) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = formatSummary(entry),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = java.text.SimpleDateFormat("MMM d, yyyy h:mm a", Locale.US)
+                                    .format(java.util.Date(getTimestamp(entry))),
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        Text(
+                            text = formatResult(entry),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    if (index < entries.lastIndex) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun CardHeader(title: String, subtitle: String) {
@@ -1087,28 +1323,6 @@ fun CardHeader(title: String, subtitle: String) {
             text = subtitle,
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-fun ResultCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(12.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            content = content
         )
     }
 }
