@@ -206,7 +206,7 @@ class SoapRepository {
             MarshalFloat().register(envelope)
 
             Log.d(TAG, "Carbon Request: $request")
-            val transport = HttpTransportSE(endpointUrl, 10000)
+            val transport = HttpTransportSE(endpointUrl, 20000)
             transport.call(soapAction, envelope)
 
             val response = envelope.response

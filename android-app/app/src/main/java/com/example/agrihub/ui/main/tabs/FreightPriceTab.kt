@@ -1,6 +1,7 @@
 package com.example.agriflow.ui.main.tabs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +47,9 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
 
     // Filter States
     var freightFilterDays by remember { mutableStateOf<Int?>(null) }
+    var startDateMillis by remember { mutableStateOf<Long?>(null) }
+    var endDateMillis by remember { mutableStateOf<Long?>(null) }
+
     var minDistanceFilter by remember { mutableStateOf<Double?>(null) }
     var heavyLoadFilter by remember { mutableStateOf(false) }
     var sortByHighestCost by remember { mutableStateOf(false) }
@@ -51,11 +57,13 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
     var distanceRange by remember { mutableStateOf(0f..1000f) }
     var weightRange by remember { mutableStateOf(0f..50f) }
 
-    val filteredFreightHistory = remember(freightHistory, freightFilterDays, minDistanceFilter, heavyLoadFilter, sortByHighestCost, distanceRange, weightRange) {
+    val filteredFreightHistory = remember(freightHistory, freightFilterDays, startDateMillis, endDateMillis, minDistanceFilter, heavyLoadFilter, sortByHighestCost, distanceRange, weightRange) {
         var list = freightHistory
         if (freightFilterDays != null) {
             val threshold = System.currentTimeMillis() - (freightFilterDays!! * 24 * 60 * 60 * 1000L)
             list = list.filter { it.timestamp >= threshold }
+        } else if (startDateMillis != null) {
+            list = list.filter { it.timestamp >= startDateMillis!! && (endDateMillis == null || it.timestamp <= endDateMillis!! + 86400000L) }
         }
         if (minDistanceFilter != null) {
             list = list.filter { it.distance >= minDistanceFilter!! }
@@ -222,10 +230,19 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
 
         Button(
             onClick = {
-                val distance = distanceInput.toDoubleOrNull() ?: 0.0
-                val fuelPrice = fuelPriceInput.toDoubleOrNull() ?: 0.0
-                val weight = weightInput.toDoubleOrNull() ?: 0.0
-                viewModel.runFreightPrice(distance, fuelPrice, weight)
+                val distance = distanceInput.toDoubleOrNull() ?: -1.0
+                val fuelPrice = fuelPriceInput.toDoubleOrNull() ?: -1.0
+                val weight = weightInput.toDoubleOrNull() ?: -1.0
+                
+                if (distance <= 0 || distance > 5000) {
+                    viewModel.setFreightError("Distance must be between 0.1 and 5,000 km")
+                } else if (fuelPrice <= 0 || fuelPrice > 200) {
+                    viewModel.setFreightError("Fuel price must be between 0.1 and 200 ₱/L")
+                } else if (weight <= 0 || weight > 100) {
+                    viewModel.setFreightError("Weight must be between 0.1 and 100 Tons")
+                } else {
+                    viewModel.runFreightPrice(distance, fuelPrice, weight)
+                }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
@@ -242,12 +259,13 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             val fuelCost = (distance / 3.5) * fuelPrice
             val cargoFee = 1.50 * weight * distance
 
-            ElevatedCard(
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            Card(
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -266,15 +284,10 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        TextButton(onClick = { isExpanded = !isExpanded }) {
-                            Text(
-                                text = if (isExpanded) "Hide Cost" else "Cost Breakdown",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                        IconButton(onClick = { isExpanded = !isExpanded }) {
                             Icon(
                                 imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
+                                contentDescription = "View Breakdown",
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -286,15 +299,15 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                 .fillMaxWidth()
                                 .padding(top = 12.dp)
                         ) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Spacer(modifier = Modifier.height(4.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Itemized Logistics Receipt",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -317,9 +330,9 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                 Text("• Cargo Weight Fee:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(String.format(Locale.US, "₱ %,.2f", cargoFee), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -342,15 +355,34 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             GenericHistoryScreen(
                 historyItems = filteredFreightHistory,
                 filterConfig = HistoryFilterConfig(
-                    quickFilters = listOf("Last 7 Days", "High Distance (> 500km)", "Heavy Load (> 20t)", "Sort: Highest Cost")
+                    quickFilters = listOf("Today", "Last 7 Days", "Last 30 Days", "High Distance (> 500km)", "Heavy Load (> 20t)", "Sort: Highest Cost")
                 ),
                 onFilterToggled = { label, isSelected ->
                     when (label) {
-                        "Last 7 Days" -> freightFilterDays = if (isSelected) 7 else null
+                        "Today" -> {
+                            freightFilterDays = if (isSelected) 1 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 7 Days" -> {
+                            freightFilterDays = if (isSelected) 7 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 30 Days" -> {
+                            freightFilterDays = if (isSelected) 30 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
                         "High Distance (> 500km)" -> minDistanceFilter = if (isSelected) 500.0 else null
                         "Heavy Load (> 20t)" -> heavyLoadFilter = isSelected
                         "Sort: Highest Cost" -> sortByHighestCost = isSelected
                     }
+                },
+                onDateRangeSelected = { start, end ->
+                    startDateMillis = start
+                    endDateMillis = end
+                    if (start != null) freightFilterDays = null
                 },
                 onAdvancedFilterSave = { },
                 advancedFilterContent = {
@@ -377,10 +409,6 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { 
-                                    viewModel.selectFreightForReuse(entry)
-                                    showHistoryDialog = false
-                                }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically

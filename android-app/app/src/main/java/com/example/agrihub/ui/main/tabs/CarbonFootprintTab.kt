@@ -1,6 +1,7 @@
 package com.example.agriflow.ui.main.tabs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -44,17 +47,22 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
 
     // Filter States
     var carbonFilterDays by remember { mutableStateOf<Int?>(null) }
+    var startDateMillis by remember { mutableStateOf<Long?>(null) }
+    var endDateMillis by remember { mutableStateOf<Long?>(null) }
+
     var highEmissionFilter by remember { mutableStateOf(false) }
     var ecoFriendlyFilter by remember { mutableStateOf(false) }
     var sortByHighestCo2 by remember { mutableStateOf(false) }
 
     var co2Range by remember { mutableStateOf(0f..500f) }
 
-    val filteredCarbonHistory = remember(carbonHistory, carbonFilterDays, highEmissionFilter, ecoFriendlyFilter, sortByHighestCo2, co2Range) {
+    val filteredCarbonHistory = remember(carbonHistory, carbonFilterDays, startDateMillis, endDateMillis, highEmissionFilter, ecoFriendlyFilter, sortByHighestCo2, co2Range) {
         var list = carbonHistory
         if (carbonFilterDays != null) {
             val threshold = System.currentTimeMillis() - (carbonFilterDays!! * 24 * 60 * 60 * 1000L)
             list = list.filter { it.timestamp >= threshold }
+        } else if (startDateMillis != null) {
+            list = list.filter { it.timestamp >= startDateMillis!! && (endDateMillis == null || it.timestamp <= endDateMillis!! + 86400000L) }
         }
         if (highEmissionFilter) {
             list = list.filter { it.resultCo2 > 100.0 }
@@ -82,7 +90,6 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
     val transportPresets = listOf(
         Pair("Truck (Heavy Cargo)", "62.0"),
         Pair("Freight Train", "22.0"),
-        Pair("Air Cargo plane", "560.0"),
         Pair("Cargo Container Ship", "8.0")
     )
     var selectedPresetName by remember { mutableStateOf(transportPresets[0].first) }
@@ -203,10 +210,19 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
 
         Button(
             onClick = {
-                val efficiency = efficiencyInput.toDoubleOrNull() ?: 0.0
-                val distance = distanceInput.toDoubleOrNull() ?: 0.0
-                val weight = weightInput.toDoubleOrNull() ?: 0.0
-                viewModel.runCarbonFootprint(efficiency, distance, weight)
+                val efficiency = efficiencyInput.toDoubleOrNull() ?: -1.0
+                val distance = distanceInput.toDoubleOrNull() ?: -1.0
+                val weight = weightInput.toDoubleOrNull() ?: -1.0
+                
+                if (efficiency <= 0 || efficiency > 2000) {
+                    viewModel.setCarbonError("Efficiency must be between 0.1 and 2,000 g/t-km")
+                } else if (distance <= 0 || distance > 20000) {
+                    viewModel.setCarbonError("Distance must be between 0.1 and 20,000 km")
+                } else if (weight <= 0 || weight > 500) {
+                    viewModel.setCarbonError("Weight must be between 0.1 and 500 Tons")
+                } else {
+                    viewModel.runCarbonFootprint(efficiency, distance, weight)
+                }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
@@ -217,12 +233,13 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
             var isExpanded by remember { mutableStateOf(false) }
             val treeOffsetCount = max(1, round(data / 21.0).toInt())
 
-            ElevatedCard(
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            Card(
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -256,27 +273,33 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                                 .fillMaxWidth()
                                 .padding(top = 12.dp)
                         ) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Spacer(modifier = Modifier.height(4.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Environmental Impact Analysis",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "• Dynamic Tree Absorption Equivalency:",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = String.format(Locale.US, "Equivalent to the annual carbon absorption of %d mature trees.", treeOffsetCount),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
+                                Column {
+                                    Text(
+                                        text = "• Dynamic Tree Absorption Equivalency:",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "Equivalent to the annual carbon absorption of %d mature trees.", treeOffsetCount),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 2.dp)
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "Note: A mature tree offsets approximately 21 kg of CO₂ per year. Minimizing transit distances directly preserves local forestry offset capacities.",
@@ -298,15 +321,34 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
             GenericHistoryScreen(
                 historyItems = filteredCarbonHistory,
                 filterConfig = HistoryFilterConfig(
-                    quickFilters = listOf("Last 7 Days", "High Emission (> 100kg)", "Eco Friendly (< 10kg)", "Sort: Highest CO2")
+                    quickFilters = listOf("Today", "Last 7 Days", "Last 30 Days", "High Emission (> 100kg)", "Eco Friendly (< 10kg)", "Sort: Highest CO2")
                 ),
                 onFilterToggled = { label, isSelected ->
                     when (label) {
-                        "Last 7 Days" -> carbonFilterDays = if (isSelected) 7 else null
+                        "Today" -> {
+                            carbonFilterDays = if (isSelected) 1 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 7 Days" -> {
+                            carbonFilterDays = if (isSelected) 7 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 30 Days" -> {
+                            carbonFilterDays = if (isSelected) 30 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
                         "High Emission (> 100kg)" -> highEmissionFilter = isSelected
                         "Eco Friendly (< 10kg)" -> ecoFriendlyFilter = isSelected
                         "Sort: Highest CO2" -> sortByHighestCo2 = isSelected
                     }
+                },
+                onDateRangeSelected = { start, end ->
+                    startDateMillis = start
+                    endDateMillis = end
+                    if (start != null) carbonFilterDays = null
                 },
                 onAdvancedFilterSave = { },
                 advancedFilterContent = {
@@ -325,10 +367,6 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { 
-                                    viewModel.selectCarbonForReuse(entry)
-                                    showHistoryDialog = false
-                                }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically

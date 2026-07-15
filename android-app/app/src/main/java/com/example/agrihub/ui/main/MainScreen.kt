@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
-import com.example.agriflow.data.local.HistoryRepository
+import com.example.agriflow.data.local.RoomHistoryRepository
 import com.example.agriflow.ui.main.components.OptInTopAppBar
 import com.example.agriflow.ui.main.components.ServerSettingsDialog
 import com.example.agriflow.ui.main.tabs.CarbonFootprintTab
@@ -30,7 +30,7 @@ import com.example.agriflow.viewmodel.AgriFlowViewModel
 fun rememberAgriFlowViewModel(): AgriFlowViewModel {
     val appContext = LocalContext.current.applicationContext
     return viewModel {
-        AgriFlowViewModel(historyRepository = HistoryRepository(appContext))
+        AgriFlowViewModel(historyRepository = RoomHistoryRepository(appContext))
     }
 }
 

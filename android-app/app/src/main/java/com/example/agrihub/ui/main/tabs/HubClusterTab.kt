@@ -12,6 +12,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.example.agriflow.data.local.HubClusterEntity
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -130,19 +132,25 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
     
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
+    var selectedHistoryItem by remember { mutableStateOf<HubClusterEntity?>(null) }
 
     // Filter States
     var hubFilterDays by remember { mutableStateOf<Int?>(null) }
+    var startDateMillis by remember { mutableStateOf<Long?>(null) }
+    var endDateMillis by remember { mutableStateOf<Long?>(null) }
+
     var multiHubFilter by remember { mutableStateOf(false) }
     var largeFarmFilter by remember { mutableStateOf(false) }
 
     var kRange by remember { mutableStateOf(1f..5f) }
 
-    val filteredHubHistory = remember(hubClusterHistory, hubFilterDays, multiHubFilter, largeFarmFilter, kRange) {
+    val filteredHubHistory = remember(hubClusterHistory, hubFilterDays, startDateMillis, endDateMillis, multiHubFilter, largeFarmFilter, kRange) {
         var list = hubClusterHistory
         if (hubFilterDays != null) {
             val threshold = System.currentTimeMillis() - (hubFilterDays!! * 24 * 60 * 60 * 1000L)
             list = list.filter { it.timestamp >= threshold }
+        } else if (startDateMillis != null) {
+            list = list.filter { it.timestamp >= startDateMillis!! && (endDateMillis == null || it.timestamp <= endDateMillis!! + 86400000L) }
         }
         if (multiHubFilter) {
             list = list.filter { it.k > 2 }
@@ -378,14 +386,33 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
             GenericHistoryScreen(
                 historyItems = filteredHubHistory,
                 filterConfig = HistoryFilterConfig(
-                    quickFilters = listOf("Last 7 Days", "Multi-Hub (K > 2)", "Large Farm Count (> 5)")
+                    quickFilters = listOf("Today", "Last 7 Days", "Last 30 Days", "Multi-Hub (K > 2)", "Large Farm Count (> 5)")
                 ),
                 onFilterToggled = { label, isSelected ->
                     when (label) {
-                        "Last 7 Days" -> hubFilterDays = if (isSelected) 7 else null
+                        "Today" -> {
+                            hubFilterDays = if (isSelected) 1 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 7 Days" -> {
+                            hubFilterDays = if (isSelected) 7 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 30 Days" -> {
+                            hubFilterDays = if (isSelected) 30 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
                         "Multi-Hub (K > 2)" -> multiHubFilter = isSelected
                         "Large Farm Count (> 5)" -> largeFarmFilter = isSelected
                     }
+                },
+                onDateRangeSelected = { start, end ->
+                    startDateMillis = start
+                    endDateMillis = end
+                    if (start != null) hubFilterDays = null
                 },
                 onAdvancedFilterSave = { },
                 advancedFilterContent = {
@@ -400,24 +427,28 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                     )
                 },
                 itemContent = { entry ->
+                    val farmPoints = remember(entry.farmPoints) { decodePoints(entry.farmPoints) }
+                    val hubPoints = remember(entry.resultHubs) { decodePoints(entry.resultHubs) }
                     Column {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { 
-                                    viewModel.selectHubForReuse(entry)
-                                    showHistoryDialog = false
-                                }
+                                .clickable { selectedHistoryItem = entry }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${decodePoints(entry.farmPoints).size} farms · K=${entry.k}",
+                                    text = "${farmPoints.size} farms · K=${entry.k}",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Lat/Lng: " + farmPoints.take(2).joinToString { String.format(Locale.US, "%.2f,%.2f", it.first, it.second) } + if (farmPoints.size > 2) "..." else "",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
                                     text = java.text.SimpleDateFormat("MMM d, yyyy h:mm a", Locale.US)
@@ -427,7 +458,7 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                                 )
                             }
                             Text(
-                                text = "${decodePoints(entry.resultHubs).size} hubs",
+                                text = "${hubPoints.size} hubs",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -438,5 +469,87 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                 }
             )
         }
+    }
+
+    if (selectedHistoryItem != null) {
+        val item = selectedHistoryItem!!
+        val farmPointsList = remember(item.farmPoints) { decodePoints(item.farmPoints).map { GeoPoint(it.first, it.second) } }
+        val hubPointsList = remember(item.resultHubs) { decodePoints(item.resultHubs).map { GeoPoint(it.first, it.second) } }
+
+        AlertDialog(
+            onDismissRequest = { selectedHistoryItem = null },
+            confirmButton = {
+                TextButton(onClick = { selectedHistoryItem = null }) { Text("Close") }
+            },
+            title = { Text("Hub Clustering Result Snapshot") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Timestamp: ${java.text.SimpleDateFormat("MMM d, yyyy h:mm a", Locale.US).format(java.util.Date(item.timestamp))}",
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "Configuration: ${farmPointsList.size} Farms -> ${item.k} Clusters",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        AndroidView(
+                            factory = { context ->
+                                MapView(context).apply {
+                                    org.osmdroid.config.Configuration.getInstance().userAgentValue = context.packageName
+                                    setMultiTouchControls(true)
+                                    zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
+                                }
+                            },
+                            update = { map ->
+                                map.overlays.clear()
+                                farmPointsList.forEach { p ->
+                                    map.overlays.add(Marker(map).apply {
+                                        position = p
+                                        icon = farmIcon
+                                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    })
+                                }
+                                hubPointsList.forEach { p ->
+                                    map.overlays.add(Marker(map).apply {
+                                        position = p
+                                        icon = hubIcon
+                                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                                    })
+                                }
+                                if (farmPointsList.isNotEmpty()) {
+                                    map.controller.setZoom(13.0)
+                                    map.controller.setCenter(farmPointsList.first())
+                                }
+                                map.invalidate()
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    
+                    Text(
+                        text = "Calculated Hub Coordinates:",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    hubPointsList.forEachIndexed { idx, p ->
+                        Text(
+                            text = String.format(Locale.US, "Hub #%d: %.5f, %.5f", idx + 1, p.latitude, p.longitude),
+                            fontSize = 12.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        )
     }
 }

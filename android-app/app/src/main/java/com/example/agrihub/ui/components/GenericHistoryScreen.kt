@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FilterList
@@ -17,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Calendar
+import java.util.Date
 import kotlin.math.ceil
 import kotlin.math.min
 
@@ -37,6 +40,7 @@ data class HistoryFilterConfig(
  * @param filterConfig Configuration for the quick filter chips.
  * @param onFilterToggled Callback for quick filter chips (label, isSelected).
  * @param onAdvancedFilterSave Callback when "Apply Filters" is clicked in the bottom sheet.
+ * @param onDateRangeSelected Optional callback for when a date range is selected via the picker.
  * @param itemContent Composable lambda to render each item [T].
  * @param advancedFilterContent Slot for feature-specific filter UI (e.g., Sliders).
  * @param modifier Modifier for the container.
@@ -49,6 +53,7 @@ fun <T> GenericHistoryScreen(
     filterConfig: HistoryFilterConfig,
     onFilterToggled: (String, Boolean) -> Unit,
     onAdvancedFilterSave: () -> Unit,
+    onDateRangeSelected: ((Long?, Long?) -> Unit)? = null,
     itemContent: @Composable (T) -> Unit,
     advancedFilterContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -57,6 +62,9 @@ fun <T> GenericHistoryScreen(
     val sheetState = rememberModalBottomSheetState()
     var showBottomSheet by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(1) }
+
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDateRangePickerState()
 
     // Reset page when items change
     LaunchedEffect(historyItems.size) {
@@ -83,6 +91,15 @@ fun <T> GenericHistoryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onDateRangeSelected != null) {
+                FilterChip(
+                    selected = datePickerState.selectedStartDateMillis != null,
+                    onClick = { showDatePicker = true },
+                    label = { Text("Date Range", fontSize = 11.sp) },
+                    leadingIcon = { Icon(Icons.Default.CalendarMonth, null, Modifier.size(FilterChipDefaults.IconSize)) }
+                )
+            }
+
             filterConfig.quickFilters.forEach { label ->
                 val isSelected = activeFilters.contains(label)
                 FilterChip(
@@ -183,6 +200,32 @@ fun <T> GenericHistoryScreen(
                     }) { Text("Apply Filters") }
                 }
             }
+        }
+    }
+
+    if (showDatePicker && onDateRangeSelected != null) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDateRangeSelected(datePickerState.selectedStartDateMillis, datePickerState.selectedEndDateMillis)
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    datePickerState.setSelection(null, null)
+                    onDateRangeSelected(null, null)
+                    showDatePicker = false
+                }) { Text("Clear") }
+            }
+        ) {
+            DateRangePicker(
+                state = datePickerState,
+                title = { Text("Select History Range", modifier = Modifier.padding(16.dp)) },
+                showModeToggle = false,
+                modifier = Modifier.fillMaxWidth().height(500.dp).padding(16.dp)
+            )
         }
     }
 }

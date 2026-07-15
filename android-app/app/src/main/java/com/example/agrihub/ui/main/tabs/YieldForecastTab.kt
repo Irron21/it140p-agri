@@ -1,6 +1,7 @@
 package com.example.agriflow.ui.main.tabs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,9 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
 
     // Filter States
     var filterDays by remember { mutableStateOf<Int?>(null) }
+    var startDateMillis by remember { mutableStateOf<Long?>(null) }
+    var endDateMillis by remember { mutableStateOf<Long?>(null) }
+
     var minYieldFilter by remember { mutableStateOf<Double?>(null) }
     var thermalStressFilter by remember { mutableStateOf(false) }
     var sortByHighestYield by remember { mutableStateOf(false) }
@@ -52,11 +58,13 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
     var tempRange by remember { mutableStateOf(10f..40f) }
     var phRange by remember { mutableStateOf(3.0f..10.0f) }
 
-    val filteredHistory = remember(yieldHistory, filterDays, minYieldFilter, thermalStressFilter, sortByHighestYield, tempRange, phRange) {
+    val filteredHistory = remember(yieldHistory, filterDays, startDateMillis, endDateMillis, minYieldFilter, thermalStressFilter, sortByHighestYield, tempRange, phRange) {
         var list = yieldHistory
         if (filterDays != null) {
             val threshold = System.currentTimeMillis() - (filterDays!! * 24 * 60 * 60 * 1000L)
             list = list.filter { it.timestamp >= threshold }
+        } else if (startDateMillis != null) {
+            list = list.filter { it.timestamp >= startDateMillis!! && (endDateMillis == null || it.timestamp <= endDateMillis!! + 86400000L) }
         }
         if (minYieldFilter != null) {
             list = list.filter { it.resultTons >= minYieldFilter!! }
@@ -164,10 +172,19 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
 
         Button(
             onClick = {
-                val area = areaInput.toDoubleOrNull() ?: 0.0
-                val temp = tempInput.toDoubleOrNull() ?: 0.0
-                val ph = phInput.toDoubleOrNull() ?: 0.0
-                viewModel.runYieldForecast(area, temp, ph)
+                val area = areaInput.toDoubleOrNull() ?: -1.0
+                val temp = tempInput.toDoubleOrNull() ?: -100.0
+                val ph = phInput.toDoubleOrNull() ?: -1.0
+                
+                if (area <= 0 || area > 10000) {
+                    viewModel.setYieldError("Area must be between 0.1 and 10,000 ha")
+                } else if (temp < -10 || temp > 60) {
+                    viewModel.setYieldError("Temperature must be between -10°C and 60°C")
+                } else if (ph < 0 || ph > 14) {
+                    viewModel.setYieldError("Soil pH must be between 0 and 14")
+                } else {
+                    viewModel.runYieldForecast(area, temp, ph)
+                }
             },
             modifier = Modifier.fillMaxWidth().height(48.dp)
         ) {
@@ -176,12 +193,15 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
 
         StateDisplay(yieldState) { data ->
             var isExpanded by remember { mutableStateOf(false) }
-            ElevatedCard(
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            val tempVal = tempInput.toDoubleOrNull() ?: 0.0
+            val phVal = phInput.toDoubleOrNull() ?: 0.0
+            Card(
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                 ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -197,7 +217,7 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                                 text = String.format(Locale.US, "%.4f metric tons", data),
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (tempVal > 30.0 || tempVal < 20.0 || phVal < 6.0) Color(0xFFD32F2F) else MaterialTheme.colorScheme.primary
                             )
                         }
                         IconButton(onClick = { isExpanded = !isExpanded }) {
@@ -215,39 +235,41 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                                 .fillMaxWidth()
                                 .padding(top = 12.dp)
                         ) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                            Spacer(modifier = Modifier.height(4.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "System Insights & Agronomy Analysis",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             
                             val tempVal = tempInput.toDoubleOrNull() ?: 0.0
                             val phVal = phInput.toDoubleOrNull() ?: 0.0
 
                             val insightLines = buildList {
                                 if (tempVal > 30.0) {
-                                    add(buildAnnotatedInsight("Warning", ": Cultivation temperature exhibits high ", "thermal stress", ", potentially reducing maximum yield."))
+                                    add(Pair("Warning", buildAnnotatedInsight("", "Cultivation temperature exhibits high ", "thermal stress", ", potentially reducing maximum yield.")))
                                 } else if (tempVal < 20.0) {
-                                    add(buildAnnotatedInsight("Warning", ": Low cultivation temperature exhibits ", "thermal stress", ", which may delay crop growth stages."))
+                                    add(Pair("Warning", buildAnnotatedInsight("", "Low cultivation temperature exhibits ", "thermal stress", ", which may delay crop growth stages.")))
                                 }
                                 if (phVal < 6.0) {
-                                    add(buildAnnotatedInsight("Warning", ": Soil pH indicates high acidity, which may restrict root development."))
+                                    add(Pair("Warning", buildAnnotatedInsight("", "Soil pH indicates high acidity, which may restrict root development.")))
                                 }
                                 if (tempVal in 20.0..30.0 && phVal >= 6.0) {
-                                    add(buildAnnotatedInsight("System Insight", ": Soil pH and climate temperature are within ", "optimal range", " for cultivation."))
+                                    add(Pair("Optimal", buildAnnotatedInsight("", "Soil pH and climate temperature are within ", "optimal range", " for cultivation.")))
                                 }
                             }
                             
-                            insightLines.forEach { annotatedString ->
-                                Text(
-                                    text = annotatedString,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(vertical = 2.dp)
-                                )
+                            insightLines.forEach { (type, annotatedString) ->
+                                Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
+                                    Text(
+                                        text = annotatedString,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -264,15 +286,34 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
             GenericHistoryScreen(
                 historyItems = filteredHistory,
                 filterConfig = HistoryFilterConfig(
-                    quickFilters = listOf("Last 7 Days", "High Yield (> 500t)", "Thermal Stress (> 30°C)", "Sort: Highest Yield")
+                    quickFilters = listOf("Today", "Last 7 Days", "Last 30 Days", "High Yield (> 500t)", "Thermal Stress (> 30°C)", "Sort: Highest Yield")
                 ),
                 onFilterToggled = { label, isSelected ->
                     when (label) {
-                        "Last 7 Days" -> filterDays = if (isSelected) 7 else null
+                        "Today" -> {
+                            filterDays = if (isSelected) 1 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 7 Days" -> {
+                            filterDays = if (isSelected) 7 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
+                        "Last 30 Days" -> {
+                            filterDays = if (isSelected) 30 else null
+                            startDateMillis = null
+                            endDateMillis = null
+                        }
                         "High Yield (> 500t)" -> minYieldFilter = if (isSelected) 500.0 else null
                         "Thermal Stress (> 30°C)" -> thermalStressFilter = isSelected
                         "Sort: Highest Yield" -> sortByHighestYield = isSelected
                     }
+                },
+                onDateRangeSelected = { start, end ->
+                    startDateMillis = start
+                    endDateMillis = end
+                    if (start != null) filterDays = null
                 },
                 onAdvancedFilterSave = { },
                 advancedFilterContent = {
@@ -299,10 +340,6 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { 
-                                    viewModel.selectYieldForReuse(entry)
-                                    showHistoryDialog = false
-                                }
                                 .padding(vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically

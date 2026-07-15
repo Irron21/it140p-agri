@@ -4,24 +4,40 @@ import android.content.Context
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Thin wrapper around [HistoryDao] so the ViewModel doesn't touch Room
- * directly. Takes an Android [Context] (needed to open/create the on-device
- * database file) -- see MainScreen.kt for how this gets constructed with the
- * Application context via the ViewModel factory.
+ * Interface defining the persistence operations for SOAP transaction history.
+ * Allows for easy mocking in unit tests.
  */
-class HistoryRepository(context: Context) {
+interface HistoryRepository {
+    val yieldHistory: Flow<List<YieldForecastEntity>>
+    suspend fun saveYield(entry: YieldForecastEntity)
+
+    val freightHistory: Flow<List<FreightCostEntity>>
+    suspend fun saveFreight(entry: FreightCostEntity)
+
+    val hubClusterHistory: Flow<List<HubClusterEntity>>
+    suspend fun saveHubCluster(entry: HubClusterEntity)
+
+    val carbonHistory: Flow<List<CarbonFootprintEntity>>
+    suspend fun saveCarbon(entry: CarbonFootprintEntity)
+}
+
+/**
+ * Room-backed implementation of [HistoryRepository].
+ * Takes an Android [Context] to access the local [AppDatabase].
+ */
+class RoomHistoryRepository(context: Context) : HistoryRepository {
 
     private val dao = AppDatabase.getInstance(context).historyDao()
 
-    val yieldHistory: Flow<List<YieldForecastEntity>> = dao.getYieldHistory()
-    suspend fun saveYield(entry: YieldForecastEntity) = dao.insertYield(entry)
+    override val yieldHistory: Flow<List<YieldForecastEntity>> = dao.getYieldHistory()
+    override suspend fun saveYield(entry: YieldForecastEntity) = dao.insertYield(entry)
 
-    val freightHistory: Flow<List<FreightCostEntity>> = dao.getFreightHistory()
-    suspend fun saveFreight(entry: FreightCostEntity) = dao.insertFreight(entry)
+    override val freightHistory: Flow<List<FreightCostEntity>> = dao.getFreightHistory()
+    override suspend fun saveFreight(entry: FreightCostEntity) = dao.insertFreight(entry)
 
-    val hubClusterHistory: Flow<List<HubClusterEntity>> = dao.getHubClusterHistory()
-    suspend fun saveHubCluster(entry: HubClusterEntity) = dao.insertHubCluster(entry)
+    override val hubClusterHistory: Flow<List<HubClusterEntity>> = dao.getHubClusterHistory()
+    override suspend fun saveHubCluster(entry: HubClusterEntity) = dao.insertHubCluster(entry)
 
-    val carbonHistory: Flow<List<CarbonFootprintEntity>> = dao.getCarbonHistory()
-    suspend fun saveCarbon(entry: CarbonFootprintEntity) = dao.insertCarbon(entry)
+    override val carbonHistory: Flow<List<CarbonFootprintEntity>> = dao.getCarbonHistory()
+    override suspend fun saveCarbon(entry: CarbonFootprintEntity) = dao.insertCarbon(entry)
 }
