@@ -274,4 +274,16 @@ class AgriFlowViewModel(
     fun resetFuelPriceState() {
         _fuelPriceState.value = SoapUiState.Idle
     }
+
+    fun setYieldError(message: String) {
+        _yieldState.value = SoapUiState.Error(message)
+    }
+
+    fun setFreightError(message: String) {
+        _freightState.value = SoapUiState.Error(message)
+    }
+
+    fun setCarbonError(message: String) {
+        _carbonState.value = SoapUiState.Error(message)
+    }
 }
