@@ -248,10 +248,30 @@ class AgriFlowViewModel(
      * Resets transaction states.
      */
     fun resetStates() {
+        resetYieldState()
+        resetFreightState()
+        resetHubState()
+        resetCarbonState()
+        resetFuelPriceState()
+    }
+
+    fun resetYieldState() {
         _yieldState.value = SoapUiState.Idle
+    }
+
+    fun resetFreightState() {
         _freightState.value = SoapUiState.Idle
+    }
+
+    fun resetHubState() {
         _hubState.value = SoapUiState.Idle
+    }
+
+    fun resetCarbonState() {
         _carbonState.value = SoapUiState.Idle
+    }
+
+    fun resetFuelPriceState() {
         _fuelPriceState.value = SoapUiState.Idle
     }
 }
