@@ -4,10 +4,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -177,6 +178,8 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
     val yieldHistory by viewModel.yieldHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingYieldReuse.collectAsStateWithLifecycle()
     
+    val scrollState = rememberScrollState()
+
     // Permission Launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -248,10 +251,7 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -271,10 +271,18 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
             }
         }
 
+        // Scrollable Body Section
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -513,7 +521,7 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                                 }
                             }
                             
-                            insightLines.forEach { (type, annotatedString) ->
+                            insightLines.forEach { (_, annotatedString) ->
                                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
                                     Text(
                                         text = annotatedString,
@@ -527,6 +535,8 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+    }
+
     }
 
     if (showHistoryDialog) {
@@ -578,7 +588,7 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                         steps = 50
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("Soil pH: ${String.format("%.1f", phRange.start)} - ${String.format("%.1f", phRange.endInclusive)}", style = MaterialTheme.typography.bodySmall)
+                    Text("Soil pH: ${String.format(Locale.US, "%.1f", phRange.start)} - ${String.format(Locale.US, "%.1f", phRange.endInclusive)}", style = MaterialTheme.typography.bodySmall)
                     RangeSlider(
                         value = phRange,
                         onValueChange = { phRange = it },

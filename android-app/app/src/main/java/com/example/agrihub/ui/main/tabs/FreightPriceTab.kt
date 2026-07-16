@@ -2,10 +2,11 @@ package com.example.agriflow.ui.main.tabs
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -36,13 +37,15 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
     var distanceInput by remember { mutableStateOf("380.0") }
     var fuelPriceInput by remember { mutableStateOf("60.00") }
     var weightInput by remember { mutableStateOf("18.5") }
-    
+
     val freightState by viewModel.freightState.collectAsStateWithLifecycle()
     val baseFare by viewModel.baseFreightFare.collectAsStateWithLifecycle()
     val fuelPriceState by viewModel.fuelPriceState.collectAsStateWithLifecycle()
     val freightHistory by viewModel.freightHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingFreightReuse.collectAsStateWithLifecycle()
-    
+
+    val scrollState = rememberScrollState()
+
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
     var showBaseFareDialog by remember { mutableStateOf(false) }
@@ -131,17 +134,25 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             }
         }
 
+        // Scrollable Body Section
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedTextField(
                     value = distanceInput,
-                    onValueChange = { 
+                    onValueChange = {
                         distanceInput = it
                         if (freightState != SoapUiState.Idle) viewModel.resetFreightState()
                     },
@@ -155,7 +166,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
 
                 OutlinedTextField(
                     value = weightInput,
-                    onValueChange = { 
+                    onValueChange = {
                         weightInput = it
                         if (freightState != SoapUiState.Idle) viewModel.resetFreightState()
                     },
@@ -175,7 +186,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             ) {
                 OutlinedTextField(
                     value = fuelPriceInput,
-                    onValueChange = { 
+                    onValueChange = {
                         fuelPriceInput = it
                         if (freightState != SoapUiState.Idle) viewModel.resetFreightState()
                     },
@@ -194,7 +205,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.Refresh, 
+                                        imageVector = Icons.Default.Refresh,
                                         contentDescription = "Fetch Live Price",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -204,7 +215,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                         }
                     }
                 )
-                
+
                 // Status tag beside the input
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     when (val state = fuelPriceState) {
@@ -246,7 +257,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                 val distance = distanceInput.toDoubleOrNull() ?: -1.0
                 val fuelPrice = fuelPriceInput.toDoubleOrNull() ?: -1.0
                 val weight = weightInput.toDoubleOrNull() ?: -1.0
-                
+
                 if (distance <= 0 || distance > 5000) {
                     viewModel.setFreightError("Distance must be between 0.1 and 5,000 km")
                 } else if (fuelPrice <= 0 || fuelPrice > 200) {
@@ -320,27 +331,27 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("• Base Dispatcher Fare:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(String.format(Locale.US, "₱ %,.2f", baseFare), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                                Text(String.format(Locale.US, "PHP %,.2f", baseFare), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("• Fuel Surcharge Cost:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(String.format(Locale.US, "₱ %,.2f", fuelCost), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                                Text(String.format(Locale.US, "PHP %,.2f", fuelCost), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("• Cargo Weight Fee:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(String.format(Locale.US, "₱ %,.2f", cargoFee), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                                Text(String.format(Locale.US, "PHP %,.2f", cargoFee), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -350,7 +361,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text("Total Calculated Cost:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                Text(String.format(Locale.US, "₱ %,.2f", baseFare + fuelCost + cargoFee), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
+                                Text(String.format(Locale.US, "PHP %,.2f", baseFare + fuelCost + cargoFee), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
                             }
                         }
                     }
@@ -358,6 +369,7 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             }
         }
     }
+}
 
     if (showBaseFareDialog) {
         var tempBaseFare by remember { mutableStateOf(baseFare.toString()) }

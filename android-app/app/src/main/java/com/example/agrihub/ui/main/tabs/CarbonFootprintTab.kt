@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -111,6 +113,8 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
     val carbonHistory by viewModel.carbonHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingCarbonReuse.collectAsStateWithLifecycle()
     
+    val scrollState = rememberScrollState()
+
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
 
@@ -164,28 +168,42 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
     var selectedPresetName by remember { mutableStateOf(transportPresets[0].first) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Sticky Header Row
+        Surface(
+            color = MaterialTheme.colorScheme.background,
+            tonalElevation = 3.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            CardHeader(
-                title = "Carbon Footprint Assessment",
-                subtitle = "Estimate CO₂ emission logs."
-            )
-            IconButton(onClick = { showHistoryDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = "View History",
-                    tint = MaterialTheme.colorScheme.primary
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CardHeader(
+                    title = "Carbon Footprint Assessment",
+                    subtitle = "Estimate CO₂ emission logs."
                 )
+                IconButton(onClick = { showHistoryDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "View History",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+                .padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -442,6 +460,7 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+    }
     }
 
     if (showHistoryDialog) {
