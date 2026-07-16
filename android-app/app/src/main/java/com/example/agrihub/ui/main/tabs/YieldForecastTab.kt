@@ -20,6 +20,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.agriflow.ui.components.GenericHistoryScreen
 import com.example.agriflow.ui.components.HistoryFilterConfig
@@ -31,6 +38,131 @@ import com.example.agriflow.ui.main.components.buildAnnotatedInsight
 import com.example.agriflow.viewmodel.AgriFlowViewModel
 import com.example.agriflow.viewmodel.SoapUiState
 import java.util.Locale
+
+@Composable
+fun TruckloadVisual(tons: Double) {
+    val capacityPerTruck = 15.0 // Standard large truck capacity in tons
+    val truckCount = tons / capacityPerTruck
+    val fullTrucks = truckCount.toInt()
+    val remainder = (truckCount - fullTrucks).toFloat()
+    
+    val displayLimit = 10
+    val displayTrucks = fullTrucks.coerceAtMost(displayLimit)
+    
+    Column {
+        Text(
+            text = "Logistics Requirement:",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FlowRow(
+                modifier = Modifier.weight(1f, fill = false),
+                horizontalArrangement = Arrangement.Start,
+                verticalArrangement = Arrangement.Center
+            ) {
+                repeat(displayTrucks) {
+                    Icon(
+                        imageVector = Icons.Default.LocalShipping,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp).padding(2.dp)
+                    )
+                }
+                if (remainder >= 0.1 && fullTrucks < displayLimit) {
+                    Box(modifier = Modifier.size(28.dp).padding(2.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.LocalShipping,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .graphicsLayer {
+                                    clip = true
+                                    shape = object : Shape {
+                                        override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+                                            return Outline.Rectangle(Rect(0f, 0f, size.width * remainder, size.height))
+                                        }
+                                    }
+                                }
+                        )
+                        Icon(
+                            imageVector = Icons.Default.LocalShipping,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+            if (fullTrucks >= displayLimit) {
+                val moreCount = if (remainder >= 0.1) (fullTrucks - displayLimit) + 1 else (fullTrucks - displayLimit)
+                if (moreCount > 0) {
+                    Text(
+                        text = "+$moreCount more",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+            }
+        }
+        Text(
+            text = String.format(Locale.US, "You will need approx. %.1f standard 15-ton trucks to transport this harvest.", truckCount),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+        )
+    }
+}
+
+@Composable
+fun OptimalGauge(label: String, value: Double, min: Double, max: Double, unit: String, modifier: Modifier = Modifier) {
+    val progress = ((value - min) / (max - min)).coerceIn(0.0, 1.0).toFloat()
+    val isOptimal = value in (min + (max - min) * 0.2)..(max - (max - min) * 0.2)
+    
+    Column(modifier = modifier.padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label, 
+                style = MaterialTheme.typography.labelSmall, 
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                fontSize = 9.sp
+            )
+            Text(
+                text = if (isOptimal) "Optimal" else "Critical",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (isOptimal) Color(0xFF2E7D32) else Color(0xFFD32F2F),
+                fontSize = 9.sp
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(6.dp).graphicsLayer(clip = true, shape = RoundedCornerShape(3.dp)),
+            color = if (isOptimal) Color(0xFF2E7D32) else Color(0xFFD32F2F),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = "$min$unit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp)
+            Text(text = String.format(Locale.US, "%.1f%s", value, unit), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+            Text(text = "$max$unit", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp)
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -314,16 +446,58 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                         ) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                             Spacer(modifier = Modifier.height(12.dp))
+                            
                             Text(
-                                text = "System Insights & Agronomy Analysis",
+                                text = "Harvest Logistics & Agronomy Analysis",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            TruckloadVisual(data)
                             
-                            val tempVal = tempInput.toDoubleOrNull() ?: 0.0
-                            val phVal = phInput.toDoubleOrNull() ?: 0.0
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Environmental Compatibility Gauges:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OptimalGauge(
+                                    label = "Temp Stability",
+                                    value = tempVal,
+                                    min = 10.0,
+                                    max = 50.0,
+                                    unit = "°C",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                
+                                OptimalGauge(
+                                    label = "Soil pH Balance",
+                                    value = phVal,
+                                    min = 3.0,
+                                    max = 11.0,
+                                    unit = "",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "Expert System Insights:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
 
                             val insightLines = buildList {
                                 if (tempVal > 30.0) {

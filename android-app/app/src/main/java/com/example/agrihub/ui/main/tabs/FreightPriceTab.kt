@@ -38,12 +38,14 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
     var weightInput by remember { mutableStateOf("18.5") }
     
     val freightState by viewModel.freightState.collectAsStateWithLifecycle()
+    val baseFare by viewModel.baseFreightFare.collectAsStateWithLifecycle()
     val fuelPriceState by viewModel.fuelPriceState.collectAsStateWithLifecycle()
     val freightHistory by viewModel.freightHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingFreightReuse.collectAsStateWithLifecycle()
     
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
+    var showBaseFareDialog by remember { mutableStateOf(false) }
 
     // Filter States
     var freightFilterDays by remember { mutableStateOf<Int?>(null) }
@@ -105,16 +107,27 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CardHeader(
-                title = "Freight Logistics Rate Calculator",
-                subtitle = "Quote standard cargo transport rates."
-            )
-            IconButton(onClick = { showHistoryDialog = true }) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = "View History",
-                    tint = MaterialTheme.colorScheme.primary
+            Box(modifier = Modifier.weight(1f)) {
+                CardHeader(
+                    title = "Freight Logistics Rate Calculator",
+                    subtitle = "Quote standard cargo transport rates."
                 )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { showBaseFareDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Edit Base Fare",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+                IconButton(onClick = { showHistoryDialog = true }) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "View History",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
@@ -255,7 +268,6 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
             val weight = weightInput.toDoubleOrNull() ?: 0.0
             val fuelPrice = fuelPriceInput.toDoubleOrNull() ?: 0.0
 
-            val baseFare = 2500.00
             val fuelCost = (distance / 3.5) * fuelPrice
             val cargoFee = 1.50 * weight * distance
 
@@ -345,6 +357,42 @@ fun FreightPriceTab(viewModel: AgriFlowViewModel) {
                 }
             }
         }
+    }
+
+    if (showBaseFareDialog) {
+        var tempBaseFare by remember { mutableStateOf(baseFare.toString()) }
+        AlertDialog(
+            onDismissRequest = { showBaseFareDialog = false },
+            title = { Text("Configure Base Dispatcher Fare") },
+            text = {
+                Column {
+                    Text("This amount is the flat starting rate applied to every freight quote before fuel and weight surcharges.", fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = tempBaseFare,
+                        onValueChange = { tempBaseFare = it },
+                        label = { Text("Base Fare (₱)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    tempBaseFare.toDoubleOrNull()?.let {
+                        viewModel.updateBaseFreightFare(it)
+                    }
+                    showBaseFareDialog = false
+                }) {
+                    Text("Update Fare")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBaseFareDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showHistoryDialog) {

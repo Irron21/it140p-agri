@@ -80,6 +80,10 @@ class AgriFlowViewModel(
     // --- 2. Freight Price State ---
     private val _freightState = MutableStateFlow<SoapUiState<Double>>(SoapUiState.Idle)
     val freightState: StateFlow<SoapUiState<Double>> = _freightState.asStateFlow()
+    
+    private val _baseFreightFare = MutableStateFlow(2500.0)
+    val baseFreightFare: StateFlow<Double> = _baseFreightFare.asStateFlow()
+
     val freightHistory: StateFlow<List<FreightCostEntity>> =
         historyRepository.freightHistory.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val _pendingFreightReuse = MutableStateFlow<FreightCostEntity?>(null)
@@ -305,6 +309,10 @@ class AgriFlowViewModel(
 
     fun selectCarbonForReuse(entry: CarbonFootprintEntity) { _pendingCarbonReuse.value = entry }
     fun clearCarbonReuse() { _pendingCarbonReuse.value = null }
+
+    fun updateBaseFreightFare(newFare: Double) {
+        _baseFreightFare.value = newFare
+    }
 
     /**
      * Resets transaction states.
