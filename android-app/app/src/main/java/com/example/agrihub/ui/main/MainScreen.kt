@@ -20,6 +20,7 @@ import com.example.agriflow.ui.main.tabs.CarbonFootprintTab
 import com.example.agriflow.ui.main.tabs.FreightPriceTab
 import com.example.agriflow.ui.main.tabs.HubClusterTab
 import com.example.agriflow.ui.main.tabs.YieldForecastTab
+import com.example.agriflow.network.LocationRepository
 import com.example.agriflow.viewmodel.AgriFlowViewModel
 
 /**
@@ -30,7 +31,10 @@ import com.example.agriflow.viewmodel.AgriFlowViewModel
 fun rememberAgriFlowViewModel(): AgriFlowViewModel {
     val appContext = LocalContext.current.applicationContext
     return viewModel {
-        AgriFlowViewModel(historyRepository = RoomHistoryRepository(appContext))
+        AgriFlowViewModel(
+            historyRepository = RoomHistoryRepository(appContext),
+            locationRepository = LocationRepository(appContext)
+        )
     }
 }
 
@@ -46,6 +50,7 @@ fun MainScreen(
     
     val endpointUrl by viewModel.endpointUrl.collectAsStateWithLifecycle()
     val fuelApiUrl by viewModel.fuelApiUrl.collectAsStateWithLifecycle()
+    val weatherApiUrl by viewModel.weatherApiUrl.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -124,9 +129,11 @@ fun MainScreen(
                 ServerSettingsDialog(
                     currentSoapUrl = endpointUrl,
                     currentFuelApiUrl = fuelApiUrl,
-                    onSave = { newSoapUrl, newFuelApiUrl ->
+                    currentWeatherApiUrl = weatherApiUrl,
+                    onSave = { newSoapUrl, newFuelApiUrl, newWeatherApiUrl ->
                         viewModel.updateEndpointUrl(newSoapUrl)
                         viewModel.updateFuelApiUrl(newFuelApiUrl)
+                        viewModel.updateWeatherApiUrl(newWeatherApiUrl)
                         showSettingsDialog = false
                     },
                     onDismiss = { showSettingsDialog = false }

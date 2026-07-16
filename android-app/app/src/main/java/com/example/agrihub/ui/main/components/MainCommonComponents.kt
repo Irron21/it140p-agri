@@ -45,11 +45,13 @@ fun OptInTopAppBar(
 fun ServerSettingsDialog(
     currentSoapUrl: String,
     currentFuelApiUrl: String,
-    onSave: (String, String) -> Unit,
+    currentWeatherApiUrl: String,
+    onSave: (String, String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var soapUrlText by remember { mutableStateOf(currentSoapUrl) }
     var fuelApiUrlText by remember { mutableStateOf(currentFuelApiUrl) }
+    var weatherApiUrlText by remember { mutableStateOf(currentWeatherApiUrl) }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -106,6 +108,14 @@ fun ServerSettingsDialog(
                     textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = weatherApiUrlText,
+                    onValueChange = { weatherApiUrlText = it },
+                    label = { Text("Live Weather REST API URL") },
+                    textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp),
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     horizontalArrangement = Arrangement.End,
@@ -116,7 +126,7 @@ fun ServerSettingsDialog(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onSave(soapUrlText, fuelApiUrlText) },
+                        onClick = { onSave(soapUrlText, fuelApiUrlText, weatherApiUrlText) },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text("Save Links", color = MaterialTheme.colorScheme.onPrimary)

@@ -1,12 +1,13 @@
 package com.example.agriflow.ui.main.tabs
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -125,11 +126,22 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
     var kInput by remember { mutableFloatStateOf(2.0f) }
 
     val hubState by viewModel.hubState.collectAsStateWithLifecycle()
+    val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val hubClusterHistory by viewModel.hubClusterHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingHubReuse.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val resources = LocalResources.current
     
+    // Permission Launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            viewModel.fetchCurrentLocation()
+        }
+    }
+
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
     var selectedHistoryItem by remember { mutableStateOf<HubClusterEntity?>(null) }
@@ -170,16 +182,6 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
         }
     }
 
-    LaunchedEffect(farms.size) {
-        if (kInput > farms.size && farms.isNotEmpty()) {
-            kInput = farms.size.toFloat()
-        }
-    }
-
-    val farmIcon = remember(context) {
-        createFarmMarker(context)
-    }
-
     val hubIcon = remember(context) {
         createHubMarker(context)
     }
@@ -191,6 +193,19 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
             zoomController.setVisibility(org.osmdroid.views.CustomZoomButtonsController.Visibility.NEVER)
             controller.setZoom(14.0)
             controller.setCenter(GeoPoint(14.2778, 121.1250))
+        }
+    }
+
+    LaunchedEffect(locationState) {
+        if (locationState is SoapUiState.Success) {
+            val loc = (locationState as SoapUiState.Success).data
+            val newPoint = GeoPoint(loc.latitude, loc.longitude)
+            if (!farms.any { it.latitude == newPoint.latitude && it.longitude == newPoint.longitude }) {
+                farms = farms + newPoint
+            }
+            // Center the map on the new location
+            mapView.controller.animateTo(newPoint)
+            viewModel.resetLocationState()
         }
     }
 
@@ -281,7 +296,6 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                     farms.forEach { farm ->
                         val marker = Marker(map).apply {
                             position = farm
-                            icon = farmIcon
                             infoWindow = null
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                         }
@@ -312,6 +326,26 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                FilledTonalButton(
+                    onClick = { 
+                        locationPermissionLauncher.launch(arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        ))
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)),
+                    modifier = Modifier.height(36.dp),
+                    enabled = locationState !is SoapUiState.Loading
+                ) {
+                    if (locationState is SoapUiState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("My Location", fontSize = 11.sp)
+                    }
+                }
+
                 FilledTonalButton(
                     onClick = {
                         farms = emptyList()
@@ -369,7 +403,6 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                         modifier = Modifier.padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Compute")
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Compute Hubs", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
@@ -514,7 +547,6 @@ fun HubClusterTab(viewModel: AgriFlowViewModel) {
                                 farmPointsList.forEach { p ->
                                     map.overlays.add(Marker(map).apply {
                                         position = p
-                                        icon = farmIcon
                                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
                                     })
                                 }

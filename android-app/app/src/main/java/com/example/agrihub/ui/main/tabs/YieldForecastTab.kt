@@ -1,5 +1,7 @@
 package com.example.agriflow.ui.main.tabs
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -7,9 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,9 +40,21 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
     var phInput by remember { mutableStateOf("6.5") }
     
     val yieldState by viewModel.yieldState.collectAsStateWithLifecycle()
+    val weatherState by viewModel.weatherState.collectAsStateWithLifecycle()
+    val locationState by viewModel.locationState.collectAsStateWithLifecycle()
     val yieldHistory by viewModel.yieldHistory.collectAsStateWithLifecycle()
     val pendingReuse by viewModel.pendingYieldReuse.collectAsStateWithLifecycle()
     
+    // Permission Launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            viewModel.fetchCurrentLocation()
+        }
+    }
+
     // Dialog State
     var showHistoryDialog by remember { mutableStateOf(false) }
 
@@ -85,6 +97,21 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
             tempInput = entry.temperature.toString()
             phInput = entry.ph.toString()
             viewModel.clearYieldReuse()
+        }
+    }
+
+    LaunchedEffect(weatherState) {
+        if (weatherState is SoapUiState.Success) {
+            tempInput = String.format(Locale.US, "%.1f", (weatherState as SoapUiState.Success).data.temperature)
+        }
+    }
+
+    // Sequence: Fetch Location -> Fetch Weather
+    LaunchedEffect(locationState) {
+        if (locationState is SoapUiState.Success) {
+            val loc = (locationState as SoapUiState.Success).data
+            viewModel.fetchLiveWeather(loc.latitude, loc.longitude)
+            viewModel.resetLocationState()
         }
     }
 
@@ -135,25 +162,6 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                 )
 
                 OutlinedTextField(
-                    value = tempInput,
-                    onValueChange = { 
-                        tempInput = it
-                        if (yieldState != SoapUiState.Idle) viewModel.resetYieldState()
-                    },
-                    label = { Text("Temp (°C)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f).padding(start = 4.dp),
-                    trailingIcon = {
-                        InfoTooltip("The average environmental temperature. Optimal ranges for most crops are between 20°C and 30°C.")
-                    }
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
                     value = phInput,
                     onValueChange = { 
                         phInput = it
@@ -161,12 +169,81 @@ fun YieldForecastTab(viewModel: AgriFlowViewModel) {
                     },
                     label = { Text("Soil pH") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).padding(start = 4.dp),
                     trailingIcon = {
                         InfoTooltip("Measures soil acidity or alkalinity. Most crops thrive in slightly acidic to neutral soil (pH 6.0 - 7.5).")
                     }
                 )
-                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = tempInput,
+                    onValueChange = { 
+                        tempInput = it
+                        if (yieldState != SoapUiState.Idle) viewModel.resetYieldState()
+                    },
+                    label = { Text("Temp (°C)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.weight(1f),
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
+                            InfoTooltip("The average environmental temperature. Optimal ranges for most crops are between 20°C and 30°C.")
+                            IconButton(
+                                onClick = { 
+                                    locationPermissionLauncher.launch(arrayOf(
+                                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                                    ))
+                                },
+                                enabled = weatherState !is SoapUiState.Loading && locationState !is SoapUiState.Loading,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                if (weatherState is SoapUiState.Loading || locationState is SoapUiState.Loading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh, 
+                                        contentDescription = "Fetch Live Weather",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+
+                // Weather status tag beside the input (matching FreightPriceTab layout)
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    when (val state = weatherState) {
+                        is SoapUiState.Success -> {
+                            val info = state.data
+                            Text(
+                                text = buildString {
+                                    append("${info.condition} · ${info.humidity}% Humidity")
+                                    append("\nLat: ${String.format(Locale.US, "%.2f", info.lat)}, Lon: ${String.format(Locale.US, "%.2f", info.lon)}")
+                                },
+                                fontSize = 10.sp,
+                                lineHeight = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
+                        is SoapUiState.Error -> {
+                            Text(
+                                text = "Weather fetch failed:\n${state.message}",
+                                fontSize = 10.sp,
+                                lineHeight = 12.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        else -> Unit
+                    }
+                }
             }
         }
 

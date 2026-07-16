@@ -12,7 +12,11 @@ import com.example.agriflow.data.local.encodePoints
 import com.example.agriflow.network.Coordinate
 import com.example.agriflow.network.FuelPriceInfo
 import com.example.agriflow.network.FuelPriceRepository
+import com.example.agriflow.network.LocationInfo
+import com.example.agriflow.network.LocationRepository
 import com.example.agriflow.network.SoapRepository
+import com.example.agriflow.network.WeatherInfo
+import com.example.agriflow.network.WeatherRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -36,6 +40,8 @@ sealed interface SoapUiState<out T> {
 class AgriFlowViewModel(
     private val repository: SoapRepository = SoapRepository(),
     private val fuelPriceRepository: FuelPriceRepository = FuelPriceRepository(),
+    private val weatherRepository: WeatherRepository = WeatherRepository(),
+    private val locationRepository: LocationRepository? = null,
     private val historyRepository: HistoryRepository
 ) : ViewModel() {
 
@@ -47,9 +53,21 @@ class AgriFlowViewModel(
     private val _fuelApiUrl = MutableStateFlow("http://10.0.2.2:8000/fuel-price-api.php")
     val fuelApiUrl: StateFlow<String> = _fuelApiUrl.asStateFlow()
 
+    // REST Weather Endpoint URL (Configurable by user in-app)
+    private val _weatherApiUrl = MutableStateFlow("http://10.0.2.2:8000/weather-api.php")
+    val weatherApiUrl: StateFlow<String> = _weatherApiUrl.asStateFlow()
+
     // --- 5. Live Fuel Price (REST) State ---
     private val _fuelPriceState = MutableStateFlow<SoapUiState<FuelPriceInfo>>(SoapUiState.Idle)
     val fuelPriceState: StateFlow<SoapUiState<FuelPriceInfo>> = _fuelPriceState.asStateFlow()
+
+    // --- 6. Live Weather (REST) State ---
+    private val _weatherState = MutableStateFlow<SoapUiState<WeatherInfo>>(SoapUiState.Idle)
+    val weatherState: StateFlow<SoapUiState<WeatherInfo>> = _weatherState.asStateFlow()
+
+    // --- 7. Device Location State ---
+    private val _locationState = MutableStateFlow<SoapUiState<LocationInfo>>(SoapUiState.Idle)
+    val locationState: StateFlow<SoapUiState<LocationInfo>> = _locationState.asStateFlow()
 
     // --- 1. Yield Forecast State ---
     private val _yieldState = MutableStateFlow<SoapUiState<Double>>(SoapUiState.Idle)
@@ -98,6 +116,13 @@ class AgriFlowViewModel(
     }
 
     /**
+     * Updates the target REST weather-api.php endpoint URL.
+     */
+    fun updateWeatherApiUrl(newUrl: String) {
+        _weatherApiUrl.value = newUrl.trim()
+    }
+
+    /**
      * Runs the REST transaction to fetch the current live diesel price.
      * A plain GET/JSON call -- deliberately lighter weight than the SOAP
      * transactions below, since fuel prices change often and don't need a
@@ -112,6 +137,43 @@ class AgriFlowViewModel(
                 }
                 .onFailure { error ->
                     _fuelPriceState.value = SoapUiState.Error(error.localizedMessage ?: "Unknown REST error")
+                }
+        }
+    }
+
+    /**
+     * Runs the REST transaction to fetch the current live weather temperature.
+     * Optionally takes coordinates to get location-specific data.
+     */
+    fun fetchLiveWeather(lat: Double? = null, lon: Double? = null) {
+        viewModelScope.launch {
+            _weatherState.value = SoapUiState.Loading
+            weatherRepository.fetchCurrentWeather(_weatherApiUrl.value, lat, lon)
+                .onSuccess { info ->
+                    _weatherState.value = SoapUiState.Success(info)
+                }
+                .onFailure { error ->
+                    _weatherState.value = SoapUiState.Error(error.localizedMessage ?: "Unknown REST error")
+                }
+        }
+    }
+
+    /**
+     * Fetches the current device GPS location.
+     */
+    fun fetchCurrentLocation() {
+        if (locationRepository == null) {
+            _locationState.value = SoapUiState.Error("Location repository not initialized")
+            return
+        }
+        viewModelScope.launch {
+            _locationState.value = SoapUiState.Loading
+            locationRepository.getCurrentLocation()
+                .onSuccess { info ->
+                    _locationState.value = SoapUiState.Success(info)
+                }
+                .onFailure { error ->
+                    _locationState.value = SoapUiState.Error(error.localizedMessage ?: "Unknown GPS error")
                 }
         }
     }
@@ -253,6 +315,8 @@ class AgriFlowViewModel(
         resetHubState()
         resetCarbonState()
         resetFuelPriceState()
+        resetWeatherState()
+        resetLocationState()
     }
 
     fun resetYieldState() {
@@ -273,6 +337,14 @@ class AgriFlowViewModel(
 
     fun resetFuelPriceState() {
         _fuelPriceState.value = SoapUiState.Idle
+    }
+
+    fun resetWeatherState() {
+        _weatherState.value = SoapUiState.Idle
+    }
+
+    fun resetLocationState() {
+        _locationState.value = SoapUiState.Idle
     }
 
     fun setYieldError(message: String) {
