@@ -18,6 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.agriflow.ui.components.GenericHistoryScreen
 import com.example.agriflow.ui.components.HistoryFilterConfig
@@ -30,6 +37,68 @@ import com.example.agriflow.viewmodel.SoapUiState
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.round
+
+@Composable
+fun TreeVisual(treeCount: Double) {
+    val fullTrees = treeCount.toInt()
+    val remainder = (treeCount - fullTrees).toFloat()
+    
+    // Limit display to a reasonable amount (e.g., 20) to avoid UI lag, 
+    // but mention the total count if it's very high.
+    val displayTrees = fullTrees.coerceAtMost(20)
+    
+    Column {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.Start,
+            verticalArrangement = Arrangement.Center
+        ) {
+            repeat(displayTrees) {
+                Icon(
+                    imageVector = Icons.Default.Park,
+                    contentDescription = null,
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(28.dp).padding(2.dp)
+                )
+            }
+            if (remainder >= 0.1 && displayTrees < 20) {
+                Box(modifier = Modifier.size(28.dp).padding(2.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Park,
+                        contentDescription = null,
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier
+                            .size(28.dp)
+                            .graphicsLayer {
+                                clip = true
+                                shape = object : Shape {
+                                    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+                                        return Outline.Rectangle(Rect(0f, 0f, size.width * remainder, size.height))
+                                    }
+                                }
+                            }
+                    )
+                    // Dimmed background of the tree to show it's partial
+                    Icon(
+                        imageVector = Icons.Default.Park,
+                        contentDescription = null,
+                        tint = Color(0xFF2E7D32).copy(alpha = 0.2f),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        }
+        if (fullTrees > 20) {
+            Text(
+                text = String.format(Locale.US, "+ %d more trees needed", fullTrees - 20),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2E7D32),
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -231,7 +300,14 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
 
         StateDisplay(carbonState) { data ->
             var isExpanded by remember { mutableStateOf(false) }
-            val treeOffsetCount = max(1, round(data / 21.0).toInt())
+            val treesNeeded = data / 21.0
+            
+            val esgInfo = when {
+                data < 50.0 -> Triple("Category A (Excellent)", "Highly ESG Compliant", Color(0xFF2E7D32))
+                data < 100.0 -> Triple("Category B (Good)", "ESG Compliant", Color(0xFF4CAF50))
+                data < 250.0 -> Triple("Category C (Fair)", "ESG Review Recommended", Color(0xFFFFA000))
+                else -> Triple("Category D (Poor)", "Non-ESG Compliant", Color(0xFFD32F2F))
+            }
 
             Card(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
@@ -257,6 +333,31 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                            
+                            Surface(
+                                color = esgInfo.third.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(top = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (data < 250.0) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = esgInfo.third,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = esgInfo.first,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = esgInfo.third
+                                    )
+                                }
+                            }
                         }
                         IconButton(onClick = { isExpanded = !isExpanded }) {
                             Icon(
@@ -275,36 +376,66 @@ fun CarbonFootprintTab(viewModel: AgriFlowViewModel) {
                         ) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                             Spacer(modifier = Modifier.height(12.dp))
+                            
                             Text(
-                                text = "Environmental Impact Analysis",
+                                text = "Environmental & ESG Compliance Analysis",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
                             
-                            Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 2.dp)) {
-                                Column {
-                                    Text(
-                                        text = "• Dynamic Tree Absorption Equivalency:",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = String.format(Locale.US, "Equivalent to the annual carbon absorption of %d mature trees.", treeOffsetCount),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
                             Text(
-                                text = "Note: A mature tree offsets approximately 21 kg of CO₂ per year. Minimizing transit distances directly preserves local forestry offset capacities.",
+                                text = "Tree Absorption Equivalency:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            TreeVisual(treesNeeded)
+                            
+                            Text(
+                                text = String.format(Locale.US, "This emission requires %.2f mature trees to offset annually.", treesNeeded),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "ESG Compliance Status:",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            Text(
+                                text = esgInfo.second,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = esgInfo.third,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                            
+                            Text(
+                                text = when {
+                                    data < 100.0 -> "Your logistics efficiency is within sustainable limits. Minimal environmental remediation required."
+                                    data < 250.0 -> "Emissions are approaching high levels. Consider route optimization or fuel-efficient transport alternatives."
+                                    else -> "Immediate ESG intervention recommended. High carbon density detected for this freight volume."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text(
+                                text = "Note: A mature tree offsets approximately 21 kg of CO₂ per year. ESG categories are based on carbon density per freight ton-kilometer.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                lineHeight = 14.sp
                             )
                         }
                     }
